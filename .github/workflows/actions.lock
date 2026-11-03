@@ -7,12 +7,20 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'step-security/claude-code-action@v1.0.238'
         - 'step-security/harden-runner@v2.22.3'
+    '.github/workflows/semantic-pull-request.yml':
+        - 'step-security/action-semantic-pull-request@v6.1.2'
+        - 'step-security/harden-runner@v2.22.3'
 dependencies:
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
         owner_id: 44036562
         repo_id: 197814629
+    'step-security/action-semantic-pull-request@v6.1.2':
+        ref: 'v6.1.2'
+        commit: 'sha1-75d2dd5deafa3e9fccc1626ecd58d076ed1d2c79'
+        owner_id: 88700172
+        repo_id: 718815272
     'step-security/claude-code-action@v1.0.238':
         ref: 'v1.0.238'
         commit: 'sha1-f921413b67d52bb040358b3c180b45f823cad94f'
