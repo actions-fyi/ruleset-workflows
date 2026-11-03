@@ -1,0 +1,31 @@
+name: Check
+# Runs as an organization ruleset workflow ("Require workflows to pass before merging"). Rulesets
+# ignore event filters and only run on opened, synchronize and reopened, so none are set here. That
+# includes `edited`: after fixing a failed title, re-run the job or push again.
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  title:
+    name: PR Title
+    # Skipped in this repository itself, where the workflow would otherwise run a second time as a
+    # regular workflow next to the ruleset.
+    if: github.repository != 'actions-fyi/ruleset-workflows'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: semantic-pull-request-${{ github.ref }}
+    permissions:
+      pull-requests: read # Read the pull request title
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@v2.22.3
+        with:
+          egress-policy: audit
+      - name: Check Conventional Commits Title
+        uses: step-security/action-semantic-pull-request@v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          validateSingleCommit: true
