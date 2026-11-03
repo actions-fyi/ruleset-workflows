@@ -1,0 +1,33 @@
+name: Lint
+# Runs as an organization ruleset workflow ("Require workflows to pass before merging"). Rulesets
+# ignore event filters and only run on opened, synchronize and reopened, so none are set here.
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  actions:
+    name: GitHub Actions
+    # Skipped in this repository itself, where the workflow would otherwise run a second time as a
+    # regular workflow next to the ruleset.
+    if: github.repository != 'actions-fyi/ruleset-workflows'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: actionslint-${{ github.ref }}
+    permissions:
+      contents: read # Read workflow files
+      pull-requests: write # Post findings as review comments
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@v2.22.3
+        with:
+          egress-policy: audit
+      - name: Checkout Repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint GitHub Actions Workflows
+        uses: kjanat/actionlint@v1.17.0
+        with:
+          review: true
