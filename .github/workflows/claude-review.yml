@@ -1,0 +1,164 @@
+name: Review
+# Runs as an organization ruleset workflow ("Require workflows to pass before merging"). Rulesets
+# ignore event filters and only run on opened, synchronize and reopened, so none are set here.
+on:
+  pull_request:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  claude:
+    name: Claude Review
+    # Skipped: drafts, bot PRs, and dependency updates (Renovate or Dependabot branches, even when
+    # opened by a user account). Fork PRs get no secrets, so they couldn't use the token. Also
+    # skipped in this repository itself, where the workflow would otherwise run a second time as a
+    # regular workflow next to the ruleset.
+    if: >-
+      github.repository != 'actions-fyi/ruleset-workflows'
+      && !github.event.pull_request.draft
+      && github.event.pull_request.user.type != 'Bot'
+      && !startsWith(github.head_ref, 'renovate/')
+      && !startsWith(github.head_ref, 'dependabot/')
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Advisory: an expired token, an unshared secret or an Anthropic outage must not block merging
+    # in every repository the ruleset targets.
+    continue-on-error: true
+    concurrency:
+      group: claude-review-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read # Check out the pull request
+      pull-requests: write # Post review comments
+      actions: read # Find the last reviewed commit from this workflow's earlier runs
+    env:
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check Claude Token
+        env:
+          HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          EXPIRES_AT: ${{ vars.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT }}
+        run: |
+          # Fails with a clear message instead of letting the action fail on a missing or expired
+          # token. The expiry date is a variable, because a secret's value can't be inspected.
+          renew="Run claude setup-token, then update the CLAUDE_CODE_OAUTH_TOKEN secret and the CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT variable."
+          if [[ "$HAS_TOKEN" != true ]]; then
+            echo "::error::The CLAUDE_CODE_OAUTH_TOKEN secret isn't available to this repository. Add it, or give this repository access to the organization secret."
+            exit 1
+          fi
+          if [[ -z "$EXPIRES_AT" ]]; then
+            echo "::warning::The CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT variable isn't set, so the token's expiry can't be checked"
+            exit 0
+          fi
+          expires=$(date -ud "$EXPIRES_AT" +%s) \
+            || { echo "::error::CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT isn't a valid date: $EXPIRES_AT"; exit 1; }
+          days=$(( (expires - $(date -u +%s)) / 86400 ))
+          if (( days < 0 )); then
+            echo "::error::The Claude token expired on $EXPIRES_AT. $renew"
+            exit 1
+          elif (( days < 30 )); then
+            echo "::warning::The Claude token expires on $EXPIRES_AT (in $days days). $renew"
+          fi
+      - name: Choose Review Scope
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ github.event.action }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DIFF_FILE: new-commits.diff
+        run: |
+          # A push that only adds commits gets an incremental review of what's new since the last
+          # review. Everything else gets a full review: opening or reopening the PR, no earlier
+          # review, rewritten history (force-push, rebase), and merge commits (e.g. main merged into
+          # the branch).
+          #
+          # The base is the head of the last run whose review step succeeded. Not the push's
+          # "before": cancel-in-progress can cancel a review before it finishes. Not the last
+          # successful run either: its job may have been skipped (draft) or failed without
+          # blocking (continue-on-error). Runs are matched by workflow ID, because as a ruleset
+          # workflow this file doesn't exist in the repository it runs in.
+          full() {
+            echo "::notice::Full review: $1"
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          [[ "$ACTION" == synchronize ]] || full "pull request $ACTION"
+          workflow_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.workflow_id') \
+            || full "this run's workflow couldn't be identified"
+          runs=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/runs" \
+              -f branch="$HEAD_REF" -f event=pull_request -f status=completed -F per_page=50 \
+            | jq -r --argjson id "$workflow_id" '.workflow_runs[] | select(.workflow_id == $id) | "\(.id) \(.head_sha)"') \
+            || full "earlier runs couldn't be listed"
+          base=
+          while read -r run_id sha; do
+            [[ -n "$run_id" ]] || continue
+            reviewed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs" \
+              --jq '[.jobs[].steps[]? | select(.name == "Review Pull Request" and .conclusion == "success")] | length') \
+              || continue
+            if (( reviewed > 0 )); then
+              base=$sha
+              break
+            fi
+          done <<< "$runs"
+          [[ -n "$base" ]] || full "no earlier review"
+          [[ "$base" != "$HEAD_SHA" ]] || full "$HEAD_SHA was already reviewed, but was pushed again"
+          compare=$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$HEAD_SHA") \
+            || full "the last reviewed commit $base can't be compared"
+          status=$(jq -r '.status' <<< "$compare")
+          [[ "$status" == ahead ]] || full "history was rewritten since the last review (comparing $base to $HEAD_SHA: $status)"
+          jq -e '.total_commits == (.commits | length)' <<< "$compare" > /dev/null \
+            || full "too many new commits to list"
+          if jq -e 'any(.commits[]; (.parents | length) > 1)' <<< "$compare" > /dev/null; then
+            full "the new commits include a merge commit"
+          fi
+          gh api -H "Accept: application/vnd.github.diff" "repos/$GITHUB_REPOSITORY/compare/$base...$HEAD_SHA" \
+            > "$DIFF_FILE" || full "the diff of the new commits couldn't be fetched"
+          echo "::notice::Incremental review of $(jq '.total_commits' <<< "$compare") new commits since $base"
+          {
+            echo "mode=incremental"
+            echo "model=sonnet"
+            echo "instructions=This is a follow-up review. The PR up to commit $base was already reviewed. Review only the changes since then (commits $base..$HEAD_SHA), whose diff is in $DIFF_FILE in the working directory; read the surrounding code where you need context. Read the earlier review comments with gh pr view --comments, don't repeat findings that were already posted, and say in the summary which earlier findings these commits fixed."
+          } >> "$GITHUB_OUTPUT"
+      - name: Review Pull Request
+        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The workflow's own token instead of the Claude GitHub App's. The app token exchange
+          # requires this file on the target repository's default branch, which a ruleset workflow
+          # never is. Comments come from github-actions[bot].
+          github_token: ${{ github.token }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request. The PR branch is already checked out.
+            ${{ steps.scope.outputs.instructions }}
+
+            Look for:
+            - Bugs and incorrect behaviour, including edge cases and error handling
+            - Security problems: injection, unsafe handling of untrusted input, leaked
+              secrets or credentials, broken authentication or authorization, and unsafe
+              GitHub Actions patterns (untrusted input in run steps, excessive permissions,
+              unpinned actions, dangerous triggers)
+            - Changes that make the code noticeably harder to maintain
+
+            Report only problems that matter. Skip style nitpicks and praise.
+            Put each finding as an inline comment on the line it concerns, then post one
+            short summary comment on the PR. If you find nothing, say so in the summary.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            ${{ steps.scope.outputs.model && format('--model {0}', steps.scope.outputs.model) || '' }}
