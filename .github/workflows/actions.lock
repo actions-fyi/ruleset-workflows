@@ -5,9 +5,9 @@ version: 'v0.0.3'
 workflows:
     '.github/workflows/actions-lock.yml':
         - 'actions/checkout@v7.0.1'
-        - 'octo-sts/action@v1.1.1'
         - 'step-security/claude-code-action@v1.0.238'
         - 'step-security/harden-runner@v2.22.3'
+        - 'step-security/octo-sts-action@v1.1.1'
     '.github/workflows/actionslint.yml':
         - 'actions/checkout@v7.0.1'
         - 'kjanat/actionlint@v1.17.0'
@@ -30,11 +30,6 @@ dependencies:
         commit: 'sha1-08bb2c4f0d039744455b87aef1c647fb8b66d37b'
         owner_id: 6353477
         repo_id: 1326162482
-    'octo-sts/action@v1.1.1':
-        ref: 'v1.1.1'
-        commit: 'sha1-f603d3be9d8dd9871a265776e625a27b00effe05'
-        owner_id: 160145231
-        repo_id: 749429568
     'step-security/action-semantic-pull-request@v6.1.2':
         ref: 'v6.1.2'
         commit: 'sha1-75d2dd5deafa3e9fccc1626ecd58d076ed1d2c79'
@@ -52,6 +47,11 @@ dependencies:
         commit: 'sha1-46b06cea07f9e64621fdf066ba77ac6915163d43'
         owner_id: 88700172
         repo_id: 422287306
+    'step-security/octo-sts-action@v1.1.1':
+        ref: 'v1.1.1'
+        commit: 'sha1-9719306bce0808715a4de71515c7cdcbc560c38b'
+        owner_id: 88700172
+        repo_id: 1309621597
     'step-security/setup-bun@f6f5dadeac34f70c7828f731569e8d6e8330b8fb':
         ref: 'v2.1.3'
         commit: 'sha1-f6f5dadeac34f70c7828f731569e8d6e8330b8fb'
