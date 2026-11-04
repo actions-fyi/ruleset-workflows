@@ -61,6 +61,17 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      # Claude Code loads a repository's settings, hooks, MCP servers and memory files without a
+      # trust prompt in non-interactive runs, so a pull request could run commands in this job or
+      # steer the review. They are removed from the checkout before Claude starts; changes to them
+      # are still reviewed through gh pr diff.
+      - name: Remove Agent Configuration
+        if: github.event_name == 'pull_request'
+        run: |
+          rm -rf -- .claude .mcp.json
+          find . -path ./.git -prune -o -type f \
+            \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \) -print0 \
+            | xargs -0 --no-run-if-empty rm -f --
       - name: Check Claude Token
         if: github.event_name == 'pull_request'
         env:
@@ -176,6 +187,8 @@ jobs:
             Report only problems that matter. Skip style nitpicks and praise.
             Put each finding as an inline comment on the line it concerns, then post one
             short summary comment on the PR. If you find nothing, say so in the summary.
+          # .git/ is off limits: the action stores the workflow token in the remote URL there.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --disallowedTools "Read(./.git/**)"
             ${{ steps.scope.outputs.model && format('--model {0}', steps.scope.outputs.model) || '' }}
