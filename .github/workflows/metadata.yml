@@ -8,16 +8,17 @@ name: Check Metadata
 #
 # On pull requests from a branch of the same repository, opened by a person, Claude Haiku fixes the
 # metadata instead of only reporting it:
-# - title: a title that isn't a Conventional Commits title is rewritten, then checked again in the
-#   same job. That job is the required check, so a rewrite that passes the check passes the run.
-#   The pull request's timeline keeps the old title.
+# - title: the inspect job checks the title without failing. If the title itself is invalid, the
+#   rewrite job has Claude write a new one, and the title job checks the result and gives the
+#   verdict. The verdict needs its own job: the token's edit starts no new run, so this run must end
+#   green on its own. The pull request's timeline keeps the old title.
 # - description: an empty description is written from the commits and the diff. Later pushes
 #   rewrite it, until someone edits it; from then on it is theirs.
 #
-# Both use the workflow's own token. Its edits start no workflow runs, which is fine here: rulesets
-# don't run on `edited` anyway, and the title is checked again in the same job. Forks get a
-# read-only token and no secrets, and Renovate and Dependabot write their own titles and
-# descriptions, so those are only checked, as before.
+# Only the rewrite and description jobs get the Claude secret and write access, and both use the
+# workflow's own token. Its edits start no workflow runs, which is fine here: rulesets don't run on
+# `edited` anyway. Forks get a read-only token and no secrets, and Renovate and Dependabot write
+# their own titles and descriptions, so those are only checked, as before.
 on:
   pull_request:
   merge_group:
@@ -52,37 +53,25 @@ defaults:
     shell: bash
 
 jobs:
-  title:
-    name: PR Title
+  # Never fails on the title: it records what is wrong, so that the rewrite job can run, and the
+  # title job gives the verdict.
+  inspect:
+    name: Inspect PR Title
     runs-on: ubuntu-latest
-    concurrency:
-      group: semantic-pull-request-${{ github.ref }}
     permissions:
-      contents: read # Check out the pull request, so Claude can read the code
-      pull-requests: write # Read the title, commits and diff, and rewrite the title
-    env:
-      GH_TOKEN: ${{ github.token }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      CAN_REWRITE: >-
-        ${{
-          github.event_name == 'pull_request'
-          && github.event.pull_request.head.repo.full_name == github.repository
-          && github.event.pull_request.user.type != 'Bot'
-          && !startsWith(github.head_ref, 'renovate/')
-          && !startsWith(github.head_ref, 'dependabot/')
-        }}
+      pull-requests: read # Read the title and commits
+    outputs:
+      # valid, title (the title is invalid), commit (the title is valid, but the only commit's
+      # message isn't), or skipped (merge group)
+      status: ${{ steps.classify.outputs.status }}
+      error: ${{ steps.check.outputs.error_message }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@v2.22.3
         with:
           egress-policy: audit
       # A merge group has no pull request payload, so the action would fail there. The title was
-      # already checked before the pull request was queued. The steps are skipped instead of the
-      # job, because whether a skipped job satisfies a ruleset workflow is undocumented; a job whose
-      # steps are skipped still succeeds.
-      #
-      # The action reads the title from the API, not from the event, so the second check below sees
-      # the rewritten title.
+      # already checked before the pull request was queued.
       - name: Check Conventional Commits Title
         id: check
         if: github.event_name == 'pull_request'
@@ -94,23 +83,57 @@ jobs:
           types: ${{ env.TITLE_TYPES }}
           validateSingleCommit: true
       # The check also fails when the title is fine but the only commit's message isn't: GitHub
-      # would use that message for the squash commit. Rewriting the title can't fix that, so the
-      # rewrite only runs when the title itself is invalid.
-      - name: Decide on Rewrite
-        id: decide
-        if: steps.check.outcome == 'failure' && env.CAN_REWRITE == 'true'
+      # would use that message for the squash commit. Rewriting the title can't fix that.
+      - name: Classify Result
+        id: classify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          OUTCOME: ${{ steps.check.outcome }}
         run: |
-          types=$(grep -v '^[[:space:]]*$' <<< "$TITLE_TYPES" | paste -sd'|')
-          re="^($types)(\([^)]+\))?!?: [^[:space:]]"
-          title=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.title')
-          if [[ "$title" =~ $re ]]; then
-            echo "::notice::The title is a Conventional Commits title, so it isn't rewritten."
-            echo "rewrite=false" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then
+            status=skipped
+          elif [[ "$OUTCOME" == success ]]; then
+            status=valid
           else
-            echo "rewrite=true" >> "$GITHUB_OUTPUT"
+            types=$(grep -v '^[[:space:]]*$' <<< "$TITLE_TYPES" | paste -sd'|')
+            re="^($types)(\([^)]+\))?!?: [^[:space:]]"
+            title=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.title')
+            if [[ "$title" =~ $re ]]; then status=commit; else status=title; fi
           fi
+          echo "::notice::Title check: $status"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+  rewrite:
+    name: Rewrite PR Title
+    needs: inspect
+    # Forks get a read-only token and no secrets, and Renovate and Dependabot write their own
+    # titles.
+    if: >-
+      needs.inspect.outputs.status == 'title'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.user.type != 'Bot'
+      && !startsWith(github.head_ref, 'renovate/')
+      && !startsWith(github.head_ref, 'dependabot/')
+    runs-on: ubuntu-latest
+    # Advisory: the title job fails the run when the title stays invalid.
+    continue-on-error: true
+    concurrency:
+      group: pr-title-rewrite-${{ github.ref }}
+    permissions:
+      contents: read # Check out the pull request, so Claude can read the code
+      pull-requests: write # Read the commits and diff, and rewrite the title
+    outputs:
+      applied: ${{ steps.apply.outputs.applied }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@v2.22.3
+        with:
+          egress-policy: audit
       - name: Checkout Repository
-        if: steps.decide.outputs.rewrite == 'true'
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -119,16 +142,14 @@ jobs:
       # trust prompt in non-interactive runs, so a pull request could run commands in this job or
       # steer Claude. They are removed from the checkout before Claude starts.
       - name: Remove Agent Configuration
-        if: steps.decide.outputs.rewrite == 'true'
         run: |
           rm -rf -- .claude .mcp.json
           find . -path ./.git -prune -o -type f \
             \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \) -print0 \
             | xargs -0 --no-run-if-empty rm -f --
       - name: Collect Pull Request
-        if: steps.decide.outputs.rewrite == 'true'
         env:
-          CHECK_ERROR: ${{ steps.check.outputs.error_message }}
+          CHECK_ERROR: ${{ needs.inspect.outputs.error }}
         run: |
           # Starts empty, so the pull request can't plant files next to the collected data.
           rm -rf -- "$CONTEXT_DIR"
@@ -149,8 +170,6 @@ jobs:
       # Read-only: Claude returns the title as structured output, and the next step applies it.
       - name: Write Title
         id: claude
-        if: steps.decide.outputs.rewrite == 'true'
-        continue-on-error: true
         uses: step-security/claude-code-action@v1.0.238
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -193,38 +212,62 @@ jobs:
         if: steps.claude.outputs.structured_output != ''
         env:
           # Parsed in the script: a step's env is evaluated even when its if skips the step, and
-          # fromJSON fails on the empty output of a skipped Claude step.
+          # fromJSON fails on an empty output.
           OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
           TITLE=$(jq -r '.title // ""' <<< "$OUTPUT")
-          # An invalid title isn't applied; the report step then fails with the original error.
+          # An invalid title isn't applied; the title job then fails with the original error.
           types=$(grep -v '^[[:space:]]*$' <<< "$TITLE_TYPES" | paste -sd'|')
           re="^($types)(\([^)]+\))?!?: [^[:space:]]"
           if [[ ! "$TITLE" =~ $re ]] || (( ${#TITLE} > 100 )); then
-            echo "::warning::Claude's title isn't a valid Conventional Commits title: $TITLE"
-            exit 0
+            echo "::error::Claude's title isn't a valid Conventional Commits title: $TITLE"
+            exit 1
           fi
           old=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.title')
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" -f title="$TITLE" --silent
           echo "::notice::Rewrote the title from \"$old\" to \"$TITLE\""
           echo "applied=true" >> "$GITHUB_OUTPUT"
+
+  # The verdict. It runs whatever the jobs before it did, so the run passes or fails here.
+  title:
+    name: PR Title
+    needs: [inspect, rewrite]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read # Read the rewritten title and commits
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@v2.22.3
+        with:
+          egress-policy: audit
+      # The action reads the title from the API, not from the event, so it sees the rewrite.
       - name: Check Rewritten Title
-        if: steps.apply.outputs.applied == 'true'
+        if: needs.rewrite.outputs.applied == 'true'
         uses: step-security/action-semantic-pull-request@v6.1.2
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           types: ${{ env.TITLE_TYPES }}
           validateSingleCommit: true
-      # The first check doesn't fail the job, so that the rewrite can run. Without a rewrite, its
-      # result is reported here.
-      - name: Report Invalid Title
-        if: steps.check.outcome == 'failure' && steps.apply.outputs.applied != 'true'
+      - name: Report Title Check
+        if: needs.rewrite.outputs.applied != 'true'
         env:
-          CHECK_ERROR: ${{ steps.check.outputs.error_message }}
+          STATUS: ${{ needs.inspect.outputs.status }}
+          CHECK_ERROR: ${{ needs.inspect.outputs.error }}
         run: |
-          echo "::error::${CHECK_ERROR:-The pull request title failed the Conventional Commits check.}"
-          exit 1
+          case "$STATUS" in
+            valid) echo "The title is a Conventional Commits title." ;;
+            skipped) echo "No title check in the merge queue. The title was checked before the pull request was queued." ;;
+            title | commit)
+              echo "::error::${CHECK_ERROR:-The pull request title failed the Conventional Commits check.}"
+              exit 1
+              ;;
+            *)
+              echo "::error::The title couldn't be inspected. Re-run the workflow."
+              exit 1
+              ;;
+          esac
 
   description:
     name: PR Description
