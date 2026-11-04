@@ -1,9 +1,13 @@
 name: Lint GitHub Actions
 # Runs as an organization ruleset workflow ("Require workflows to pass before merging"), where
 # only the workflow name is shown, not the job name, so the name must say what it checks. Rulesets
-# ignore event filters and only run on opened, synchronize and reopened, so none are set here.
+# ignore event filters and only run on the default activity types (opened, synchronize and reopened
+# for pull requests, checks_requested for merge groups), so none are set here. A merge queue waits
+# for every required workflow, so this one must also run on merge_group, where it lints the merged
+# result.
 on:
   pull_request:
+  merge_group:
 
 permissions: {}
 
@@ -14,6 +18,9 @@ jobs:
     # regular workflow next to the ruleset.
     if: github.repository != 'actions-fyi/ruleset-workflows'
     runs-on: ubuntu-latest
+    # github.ref is refs/pull/<number>/merge for a pull request and a unique
+    # refs/heads/gh-readonly-queue/<base>/pr-<number>-<sha> for each merge group entry, so the two
+    # never share a group.
     concurrency:
       group: actionslint-${{ github.ref }}
     permissions:
