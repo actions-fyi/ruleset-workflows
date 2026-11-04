@@ -192,8 +192,11 @@ jobs:
         id: apply
         if: steps.claude.outputs.structured_output != ''
         env:
-          TITLE: ${{ fromJSON(steps.claude.outputs.structured_output).title }}
+          # Parsed in the script: a step's env is evaluated even when its if skips the step, and
+          # fromJSON fails on the empty output of a skipped Claude step.
+          OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
+          TITLE=$(jq -r '.title // ""' <<< "$OUTPUT")
           # An invalid title isn't applied; the report step then fails with the original error.
           types=$(grep -v '^[[:space:]]*$' <<< "$TITLE_TYPES" | paste -sd'|')
           re="^($types)(\([^)]+\))?!?: [^[:space:]]"
@@ -356,9 +359,11 @@ jobs:
       - name: Post Description
         if: steps.claude.outputs.structured_output != ''
         env:
-          DESCRIPTION: ${{ fromJSON(steps.claude.outputs.structured_output).description }}
+          # Parsed in the script: a step's env is evaluated even when its if skips the step, and
+          # fromJSON fails on the empty output of a skipped Claude step.
+          OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
-          text=$(printf '%s' "$DESCRIPTION")
+          text=$(jq -r '.description // ""' <<< "$OUTPUT")
           if [[ -z "${text//[[:space:]]/}" ]]; then
             echo "::error::Claude returned no description."
             exit 1

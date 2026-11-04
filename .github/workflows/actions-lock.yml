@@ -395,9 +395,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          COMMENT: ${{ fromJSON(steps.claude.outputs.structured_output).comment }}
+          # Parsed in the script: a step's env is evaluated even when its if skips the step, and
+          # fromJSON fails on the empty output of a skipped Claude step.
+          OUTPUT: ${{ steps.claude.outputs.structured_output }}
           MARKER: "<!-- actions-lock-explanation -->"
         run: |
+          COMMENT=$(jq -r '.comment // ""' <<< "$OUTPUT")
           if [[ -z "$COMMENT" ]]; then
             echo "::error::Claude returned no comment."
             exit 1
