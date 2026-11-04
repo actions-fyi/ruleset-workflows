@@ -1,4 +1,4 @@
-name: PR Title Check
+name: Check Metadata
 # Runs as an organization ruleset workflow ("Require workflows to pass before merging"), where
 # only the workflow name is shown, not the job name, so the name must say what it checks. Rulesets
 # ignore event filters and only run on opened, synchronize and reopened, so none are set here. That
