@@ -6,6 +6,13 @@ name: Check Actions Lockfile
 # for every required workflow, so this one must also run on merge_group, where it verifies the
 # merged result.
 #
+# Rulesets ignore paths filters too, and a required workflow that never runs would block merging.
+# So the workflow always runs, and the changes job decides whether the pull request or merge group
+# changes a workflow or action file, the lockfile included. If not, the check job and the jobs after
+# it are skipped, and the run still succeeds, because the changes job does. A pin that stops
+# verifying upstream is therefore reported by the next pull request that touches the workflows, not
+# by unrelated ones.
+#
 # The check job fails when .github/workflows/actions.lock is out of sync with the workflows, or a
 # locked pin no longer verifies upstream. Repositories without a lockfile aren't onboarded and are
 # skipped.
@@ -41,8 +48,52 @@ defaults:
     shell: bash
 
 jobs:
+  changes:
+    name: Changed Workflows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Compare the changes against the base
+    outputs:
+      check: ${{ steps.changes.outputs.check }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@v2.22.3
+        with:
+          egress-policy: audit
+      # A three-dot compare lists what the pull request changes since it branched off; for a merge
+      # group, the base is an ancestor of the head, so it lists everything the group adds. The API
+      # lists at most 300 files, and a larger or unlistable change is checked rather than guessed.
+      # The paths are the ones the fix job may commit.
+      - name: Find Changed Workflows
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: |
+          check() {
+            echo "::notice::$1"
+            echo "check=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          compare="$RUNNER_TEMP/compare.json"
+          gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA" > "$compare" \
+            || check "The changed files couldn't be listed, so the lockfile is checked."
+          (( $(jq '.files // [] | length' "$compare") < 300 )) \
+            || check "Too many changed files to list, so the lockfile is checked."
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/* | action.yml | action.yaml | */action.yml | */action.yaml)
+                check "$path changed, so the lockfile is checked."
+                ;;
+            esac
+          done < <(jq -r '.files // [] | .[] | .filename, (.previous_filename // empty)' "$compare")
+          echo "::notice::No workflow or action file changed. Nothing to check."
+
   check:
     name: Actions Lockfile
+    needs: changes
+    if: needs.changes.outputs.check == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: actions-lock-check-${{ github.ref }}
