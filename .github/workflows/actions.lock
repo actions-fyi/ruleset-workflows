@@ -17,7 +17,9 @@ workflows:
         - 'step-security/claude-code-action@v1.0.238'
         - 'step-security/harden-runner@v2.22.3'
     '.github/workflows/metadata.yml':
+        - 'actions/checkout@v7.0.1'
         - 'step-security/action-semantic-pull-request@v6.1.2'
+        - 'step-security/claude-code-action@v1.0.238'
         - 'step-security/harden-runner@v2.22.3'
 dependencies:
     'actions/checkout@v7.0.1':
