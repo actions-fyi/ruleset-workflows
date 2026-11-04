@@ -1,10 +1,13 @@
 name: Check Metadata
 # Runs as an organization ruleset workflow ("Require workflows to pass before merging"), where
 # only the workflow name is shown, not the job name, so the name must say what it checks. Rulesets
-# ignore event filters and only run on opened, synchronize and reopened, so none are set here. That
-# includes `edited`: after fixing a failed title, re-run the job or push again.
+# ignore event filters and only run on the default activity types (opened, synchronize and reopened
+# for pull requests, checks_requested for merge groups), so none are set here. That includes
+# `edited`: after fixing a failed title, re-run the job or push again. A merge queue waits for every
+# required workflow, so this one must also run on merge_group.
 on:
   pull_request:
+  merge_group:
 
 permissions: {}
 
@@ -24,7 +27,12 @@ jobs:
         uses: step-security/harden-runner@v2.22.3
         with:
           egress-policy: audit
+      # A merge group has no pull request payload, so the action would fail there. The title was
+      # already checked before the pull request was queued. The step is skipped instead of the job,
+      # because whether a skipped job satisfies a ruleset workflow is undocumented; a job whose
+      # steps are skipped still succeeds.
       - name: Check Conventional Commits Title
+        if: github.event_name == 'pull_request'
         uses: step-security/action-semantic-pull-request@v6.1.2
         env:
           GITHUB_TOKEN: ${{ github.token }}
