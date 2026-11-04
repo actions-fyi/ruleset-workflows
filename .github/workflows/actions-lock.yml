@@ -176,7 +176,7 @@ jobs:
         if: steps.fix.outputs.changed == 'true'
         id: sts
         continue-on-error: true
-        uses: octo-sts/action@v1.1.1
+        uses: step-security/octo-sts-action@v1
         with:
           scope: ${{ github.repository_owner }}
           identity: actions-lock
