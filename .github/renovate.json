@@ -1,14 +1,4 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>actions-fyi/.github"],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "Versions in workflow env vars, annotated with a `# renovate: datasource=… depName=…` comment on the line above",
-      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+[A-Z0-9_]+: ['\"]?(?<currentValue>[^'\"\\s]+)"
-      ]
-    }
-  ]
+  "extends": ["github>actions-fyi/.github", "customManagers:githubActionsVersions"]
 }
