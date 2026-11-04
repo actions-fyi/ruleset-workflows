@@ -14,9 +14,6 @@ permissions: {}
 jobs:
   actions:
     name: GitHub Actions
-    # Skipped in this repository itself, where the workflow would otherwise run a second time as a
-    # regular workflow next to the ruleset.
-    if: github.repository != 'actions-fyi/ruleset-workflows'
     runs-on: ubuntu-latest
     # github.ref is refs/pull/<number>/merge for a pull request and a unique
     # refs/heads/gh-readonly-queue/<base>/pr-<number>-<sha> for each merge group entry, so the two

@@ -19,24 +19,19 @@ jobs:
   claude:
     name: Claude Review
     # Skipped: drafts, bot PRs, and dependency updates (Renovate or Dependabot branches, even when
-    # opened by a user account). Fork PRs get no secrets, so they couldn't use the token. Also
-    # skipped in this repository itself, where the workflow would otherwise run a second time as a
-    # regular workflow next to the ruleset.
+    # opened by a user account). Fork PRs get no secrets, so they couldn't use the token.
     #
     # Merge groups pass the job condition, and every step below except the notice skips itself on
     # them, so the job succeeds in the queue. The job isn't skipped there, because whether a skipped
     # job satisfies a ruleset workflow is undocumented.
     if: >-
-      github.repository != 'actions-fyi/ruleset-workflows'
-      && (
-        github.event_name == 'merge_group'
-        || (
-          !github.event.pull_request.draft
-          && github.event.pull_request.user.type != 'Bot'
-          && !startsWith(github.head_ref, 'renovate/')
-          && !startsWith(github.head_ref, 'dependabot/')
-          && github.event.pull_request.head.repo.full_name == github.repository
-        )
+      github.event_name == 'merge_group'
+      || (
+        !github.event.pull_request.draft
+        && github.event.pull_request.user.type != 'Bot'
+        && !startsWith(github.head_ref, 'renovate/')
+        && !startsWith(github.head_ref, 'dependabot/')
+        && github.event.pull_request.head.repo.full_name == github.repository
       )
     runs-on: ubuntu-latest
     # Advisory: an expired token, an unshared secret or an Anthropic outage must not block merging
