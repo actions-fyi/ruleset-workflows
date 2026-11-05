@@ -93,10 +93,13 @@ jobs:
     name: Interpret Results
     # Guards the checkout here rather than trusting each caller's gate. The checkout uses the pull
     # request's head whenever the event carries one, so the check applies to every such event
-    # (pull_request, pull_request_target, pull_request_review, ...), not only pull_request. It
-    # checks who opened the pull request, not github.actor, so a person pushing to a Renovate pull
-    # request is still explained. Fork pull requests from members pass too; they only work where
-    # the repository sends secrets (and, for the report job, write tokens) to fork pull requests,
+    # (pull_request, pull_request_target, pull_request_review, ...), not only pull_request. A
+    # branch in this repository passes: only someone with write access can push it. A fork pull
+    # request passes if its author is an owner, member or collaborator, or one of allowed-bots;
+    # that checks who opened it, not github.actor, so a person pushing to a Renovate pull request
+    # is still explained. author_association alone isn't enough for branches, because it reads
+    # CONTRIBUTOR for organization members whose membership is private. Fork pull requests only
+    # work where the repository sends secrets (and, for the report job, write tokens) to them,
     # which private and internal repositories can enable and public ones can't. allowed-bots must
     # be comma-separated without spaces. Without a pull request, only the default branch counts.
     # The report and resolve jobs repeat the same condition.
@@ -108,7 +111,8 @@ jobs:
         (
           github.event.pull_request
           && (
-            contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+            github.event.pull_request.head.repo.full_name == github.repository
+            || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
             || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
           )
         )
@@ -247,7 +251,8 @@ jobs:
         (
           github.event.pull_request
           && (
-            contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+            github.event.pull_request.head.repo.full_name == github.repository
+            || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
             || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
           )
         )
@@ -363,7 +368,8 @@ jobs:
         (
           github.event.pull_request
           && (
-            contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+            github.event.pull_request.head.repo.full_name == github.repository
+            || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
             || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
           )
         )
