@@ -33,10 +33,11 @@ name: Check Actions Lockfile
 # applies instead: it pins the subject to this repository and limits the token to it. The fix job
 # only picks the identity; the policies decide what's allowed.
 #
-# On the same pull requests, the results job uploads the findings and the fix's outcome as an
-# artifact, and the comment job calls the reusable _explain.yml, where Claude Haiku explains the
-# findings, and either what the fix changed or what the author still has to do, in one comment that
-# later runs update.
+# On the same pull requests, the report job calls the reusable _explain.yml in two cases. When the
+# check failed and no fix was committed, the results job uploads the findings and the fix's outcome
+# as an artifact, and Claude Haiku explains them and what the author has to do, in one comment that
+# later runs update. When the check passed, that comment is minimized as resolved. A committed fix
+# isn't reported: the fix commit's own run checks it, and resolves the comment if it passes.
 on:
   pull_request:
   merge_group:
@@ -298,14 +299,15 @@ jobs:
           echo "oid=$oid" >> "$GITHUB_OUTPUT"
           echo "::notice::Committed the lockfile fix as $oid. Its own run checks the result."
 
-  # Hands the results to the comment job as files: _explain.yml downloads them for Claude.
+  # Hands the results to the report job as files: _explain.yml downloads them for Claude.
   results:
     name: Collect Lockfile Results
     needs: [check, fix]
-    # Same pull requests as the comment job.
+    # Same pull requests as the report job, when it reports a failure.
     if: >-
       always()
       && needs.check.result == 'failure'
+      && !needs.fix.outputs.commit
       && github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name == github.repository
       && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -345,24 +347,33 @@ jobs:
 
   # No continue-on-error: a job that calls a reusable workflow can't have one, and a failing
   # explanation should show.
-  comment:
-    name: Explain Actions Lockfile
+  report:
+    name: Report Actions Lockfile
     needs: [check, fix, results]
     # Same pull requests as the fix job: forks and Dependabot get no access to the Claude secret.
+    # A failure is reported only when no fix was committed; a pass resolves the earlier report. A
+    # skipped check, with no workflow changes, reports nothing.
     if: >-
       always()
-      && needs.check.result == 'failure'
+      && !cancelled()
       && github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name == github.repository
       && github.event.pull_request.user.login != 'dependabot[bot]'
+      && (
+        needs.check.result == 'success'
+        || (needs.check.result == 'failure' && !needs.fix.outputs.commit)
+      )
     permissions:
       contents: read # Check out the pull request, so Claude can read the workflows
-      pull-requests: write # Create or update the explanation comment
+      issues: write # _explain.yml declares it for issues on the default branch
+      pull-requests: write # Create, update, minimize or unminimize the report comment
     uses: $/.github/workflows/_explain.yml
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:
-      results: actions-lock-results
+      failed: ${{ needs.check.result == 'failure' }}
+      # Without results, _explain.yml reports the failure with a fixed text.
+      results: ${{ needs.results.result == 'success' && 'actions-lock-results' || '' }}
       # The marker of the comments posted before _explain.yml existed, so they keep being updated.
       marker: "<!-- actions-lock-explanation -->"
       # Renovate's pull requests are the most common source of an outdated lockfile, and
@@ -380,14 +391,14 @@ jobs:
         The GitHub Actions lockfile check (gh actions-lock) failed on this pull request.
         The PR head is checked out. The results directory holds:
         - verify.log: output of `gh actions-lock --verify`, which failed
-        - fix-result.txt: whether an automatic fix was committed, and its commit SHA
+        - fix-result.txt: why no automatic fix was committed
         - fix.log: output of `gh actions-lock`, the fix attempt (empty if none ran)
-        - fix.diff: the changes the fix made (empty if none)
+        - fix.diff: the changes the fix attempt made (empty if none)
 
         Write a short PR comment in GitHub Markdown for the PR author:
         - What was wrong, per finding: which workflow, which action, and why it failed.
-        - If a fix was committed: what it changed, and that the fix commit gets its own run.
-        - Otherwise: what the author has to do. Out-of-date entries are fixed by running
+        - If a fix was attempted: why it wasn't committed.
+        - What the author has to do. Out-of-date entries are fixed by running
           `gh actions-lock` and pushing the result. For a moved tag or an unreachable pin,
           the author must inspect the upstream repository before running
           `gh actions-lock --relock`. Never suggest editing actions.lock by hand, deleting
