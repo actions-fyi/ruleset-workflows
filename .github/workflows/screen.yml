@@ -1,6 +1,7 @@
 name: Screen Text
-# A reusable workflow, not a ruleset workflow. explain.yml calls it with
-# `uses: $/.github/workflows/screen.yml` before it posts or returns anything Claude wrote.
+# A reusable workflow, not a ruleset workflow. It is meant to be called with
+# `uses: $/.github/workflows/screen.yml` by workflows that post Claude's output, before they post
+# or return anything Claude wrote, e.g. explain.yml (actions-fyi/ruleset-workflows#13).
 #
 # Claude writes explanations after reading logs, diffs and code from a pull request, which may hold
 # instructions that make it read a secret and write it into its answer. This workflow checks such
