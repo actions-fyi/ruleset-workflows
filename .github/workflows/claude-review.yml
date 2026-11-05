@@ -187,8 +187,31 @@ jobs:
             Report only problems that matter. Skip style nitpicks and praise.
             Put each finding as an inline comment on the line it concerns, then post one
             short summary comment on the PR. If you find nothing, say so in the summary.
-          # .git/ is off limits: the action stores the workflow token in the remote URL there.
+          # A pull request can try to make Claude read a secret, such as the Claude token in its own
+          # process environment, and post it in a comment. Claude reads the code with the file
+          # tools, and its Bash may only run the three gh commands, but Claude Code runs read-only
+          # commands like cat and grep without a rule, and a gh pr comment can carry anything.
+          #
+          # The setting makes the file tools refuse paths outside the working directory in every
+          # permission mode, and takes away the approval that read-only Bash commands get for such
+          # paths. The Read deny rules name what a pull request would aim for: the process
+          # environment in /proc and /sys, the runner's temp directory, the dotfiles in the runner's
+          # home, and .git/, where the action stores the workflow token. They also apply to the
+          # file commands Claude Code recognizes in Bash, such as cat, head and tail, including in
+          # a command substitution. No rule covers a prefix of the workspace under ~/work, so the
+          # checkout stays readable. gh can read on its own, where no Read rule sees it: a body
+          # file (--body-file, -F) and jq's env (--jq, -q), so those are denied for gh.
+          #
+          # This narrows Bash, but doesn't confine it. A bare Bash deny would remove the tool, gh
+          # allows included, and an allow can't carve an exception out of a deny. A deny for cat
+          # would also block the usual gh pr comment --body "$(cat <<'EOF' ... EOF)". Commands
+          # Claude Code can't recognize as a read, such as a script interpreter, are only stopped
+          # because they need an approval nobody can give in a non-interactive run. The way out is
+          # to take Bash and the posting tools away from Claude: have it return its findings as
+          # structured output, screen them with screen.yml, and post them from a job that runs no
+          # agent.
           claude_args: |
+            --settings '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}'
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
-            --disallowedTools "Read(./.git/**)"
+            --disallowedTools "Edit,Write,NotebookEdit,WebFetch,WebSearch,Task,Agent,Read(./.git/**),Read(//proc/**),Read(//sys/**),Read(/${{ runner.temp }}/**),Read(~/.*),Read(~/.*/**),Bash(gh * --body-file*),Bash(gh * -F*),Bash(gh * --jq*),Bash(gh * -q*)"
             ${{ steps.scope.outputs.model && format('--model {0}', steps.scope.outputs.model) || '' }}
