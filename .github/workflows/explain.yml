@@ -38,7 +38,9 @@ on:
         type: string
         default: haiku
       allowed-bots:
-        description: Comma-separated bots whose pull requests Claude may explain, e.g. renovate[bot].
+        description: >-
+          The bots, as pull request authors, whose pull requests Claude may explain, comma-separated
+          without spaces, e.g. renovate[bot].
         type: string
         default: ""
     secrets:
@@ -61,6 +63,16 @@ defaults:
 jobs:
   interpret:
     name: Interpret Results
+    # Guards the checkout here rather than trusting each caller's gate. It checks who opened the
+    # pull request, not github.actor, so a person pushing to a Renovate pull request is still
+    # explained. Fork pull requests from members pass too; they only work where the repository
+    # sends secrets (and, for the comment job, write tokens) to fork pull requests, which private
+    # and internal repositories can enable and public ones can't. allowed-bots must be
+    # comma-separated without spaces.
+    if: >-
+      github.event_name != 'pull_request'
+      || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+      || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
     runs-on: ubuntu-latest
     permissions:
       contents: read # Check out the repository, so Claude can read it
