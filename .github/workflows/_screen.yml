@@ -1,7 +1,9 @@
 name: Screen Text
 # A reusable workflow, not a ruleset workflow. It is meant to be called with
-# `uses: $/.github/workflows/screen.yml` by workflows that post Claude's output, before they post
-# or return anything Claude wrote, e.g. explain.yml (actions-fyi/ruleset-workflows#13).
+# `uses: $/.github/workflows/_screen.yml` by workflows that post Claude's output, before they post
+# or return anything Claude wrote, e.g. _explain.yml (actions-fyi/ruleset-workflows#13).
+#
+# The _ prefix marks a shared workflow: called only with workflow_call, never by events or rulesets.
 #
 # Claude writes explanations after reading logs, diffs and code from a pull request, which may hold
 # instructions that make it read a secret and write it into its answer. This workflow checks such

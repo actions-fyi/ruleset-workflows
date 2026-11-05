@@ -34,7 +34,7 @@ name: Check Actions Lockfile
 # only picks the identity; the policies decide what's allowed.
 #
 # On the same pull requests, the results job uploads the findings and the fix's outcome as an
-# artifact, and the comment job calls the reusable explain.yml, where Claude Haiku explains the
+# artifact, and the comment job calls the reusable _explain.yml, where Claude Haiku explains the
 # findings, and either what the fix changed or what the author still has to do, in one comment that
 # later runs update.
 on:
@@ -298,7 +298,7 @@ jobs:
           echo "oid=$oid" >> "$GITHUB_OUTPUT"
           echo "::notice::Committed the lockfile fix as $oid. Its own run checks the result."
 
-  # Hands the results to the comment job as files: explain.yml downloads them for Claude.
+  # Hands the results to the comment job as files: _explain.yml downloads them for Claude.
   results:
     name: Collect Lockfile Results
     needs: [check, fix]
@@ -358,12 +358,12 @@ jobs:
     permissions:
       contents: read # Check out the pull request, so Claude can read the workflows
       pull-requests: write # Create or update the explanation comment
-    uses: $/.github/workflows/explain.yml
+    uses: $/.github/workflows/_explain.yml
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:
       results: actions-lock-results
-      # The marker of the comments posted before explain.yml existed, so they keep being updated.
+      # The marker of the comments posted before _explain.yml existed, so they keep being updated.
       marker: "<!-- actions-lock-explanation -->"
       # Renovate's pull requests are the most common source of an outdated lockfile, and
       # octo-sts[bot] starts the run that checks a fix commit, which can still fail.

@@ -208,7 +208,7 @@ jobs:
           # Claude Code can't recognize as a read, such as a script interpreter, are only stopped
           # because they need an approval nobody can give in a non-interactive run. The way out is
           # to take Bash and the posting tools away from Claude: have it return its findings as
-          # structured output, screen them with screen.yml, and post them from a job that runs no
+          # structured output, screen them with _screen.yml, and post them from a job that runs no
           # agent.
           claude_args: |
             --settings '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}'
