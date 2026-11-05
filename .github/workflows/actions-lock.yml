@@ -358,6 +358,11 @@ jobs:
       # Renovate's pull requests are the most common source of an outdated lockfile, and
       # octo-sts[bot] starts the run that checks a fix commit, which can still fail.
       allowed-bots: renovate[bot],octo-sts[bot]
+      # What gh actions-lock prints, so the screen doesn't take it for secrets.
+      screen-context: >-
+        The results come from gh actions-lock, so the explanation may also quote actions.lock
+        entries: action refs, commits written as sha1- followed by 40 hex characters, and numeric
+        owner_id and repo_id values.
       prompt: |
         REPO: ${{ github.repository }}
         PR NUMBER: ${{ github.event.pull_request.number }}
