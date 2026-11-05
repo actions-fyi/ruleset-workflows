@@ -25,9 +25,13 @@ name: Check Actions Lockfile
 #
 # The commit can't use the workflow's own token, because GitHub starts no workflows for its pushes,
 # so the new head would wait for its required checks forever, and because that token can't change
-# files under .github/workflows/. It uses a short-lived token from Octo STS instead, granted by the
-# org-level trust policy .github/chainguard/actions-lock.sts.yaml in actions-fyi/.github, which
-# matches this file by name.
+# files under .github/workflows/. It uses a short-lived token from Octo STS instead, granted by an
+# org-level trust policy in .github/chainguard/ of actions-fyi/.github. In other repositories, the
+# ruleset runs main's version of this file, which actions-lock.sts.yaml (identity actions-lock)
+# matches by name at refs/heads/main. In this repository, a pull request runs its own copy of this
+# file, at refs/pull/<n>/merge, so actions-lock.ruleset.sts.yaml (identity actions-lock.ruleset)
+# applies instead: it pins the subject to this repository and limits the token to it. The fix job
+# only picks the identity; the policies decide what's allowed.
 #
 # On the same pull requests, the results job uploads the findings and the fix's outcome as an
 # artifact, and the comment job calls the reusable explain.yml, where Claude Haiku explains the
@@ -223,8 +227,14 @@ jobs:
             exit 1
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
-      # The org scope loads the trust policy from the default branch of actions-fyi/.github, so a
-      # pull request can't add or weaken it. The token is revoked when the job ends.
+      # The org scope loads the trust policies from the default branch of actions-fyi/.github, so a
+      # pull request can't add or weaken them. The token is revoked when the job ends.
+      #
+      # Other repositories run main's version of this file and request actions-lock. This
+      # repository's pull requests run their own copy, at refs/pull/<n>/merge, which that policy
+      # doesn't accept, so they request actions-lock.ruleset, whose policy pins the subject to this
+      # repository and limits the token to it. The expression only picks the identity; the policies
+      # decide what's allowed.
       - name: Get Fix Token
         if: steps.fix.outputs.changed == 'true'
         id: sts
@@ -232,7 +242,7 @@ jobs:
         uses: step-security/octo-sts-action@v1.1.1
         with:
           scope: ${{ github.repository_owner }}
-          identity: actions-lock
+          identity: ${{ github.repository == 'actions-fyi/ruleset-workflows' && 'actions-lock.ruleset' || 'actions-lock' }}
       - name: Report Missing Fix Token
         if: steps.fix.outputs.changed == 'true' && steps.sts.outcome != 'success'
         run: |
