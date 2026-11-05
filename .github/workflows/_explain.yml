@@ -1,8 +1,10 @@
 name: Explain Results
 # A reusable workflow, not a ruleset workflow. The ruleset workflows in this repository call it
-# with `uses: $/.github/workflows/explain.yml`, the same-repository syntax of workflow lockfiles,
+# with `uses: $/.github/workflows/_explain.yml`, the same-repository syntax of workflow lockfiles,
 # which takes no ref. It runs as part of the caller's run, in the target repository's context: the
 # caller's event, token and secrets.
+#
+# The _ prefix marks a shared workflow: called only with workflow_call, never by events or rulesets.
 #
 # Claude reads the results of a failed check and explains them. The caller writes the task in the
 # prompt input; this workflow adds where the results are and that they are untrusted. The answer
@@ -19,7 +21,7 @@ name: Explain Results
 #
 # A pull request can try to make Claude read a secret and write it into the explanation, which
 # would then be posted. Claude can only read the checkout, and before anything is posted, the
-# screen job runs the title and body through screen.yml, which fails on anything that looks like a
+# screen job runs the title and body through _screen.yml, which fails on anything that looks like a
 # secret. The outputs may only be used when the call succeeded, that is, when the screen passed.
 on:
   workflow_call:
@@ -181,13 +183,13 @@ jobs:
             echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
-  # Fails unless the title and body are judged free of secrets; see screen.yml.
+  # Fails unless the title and body are judged free of secrets; see _screen.yml.
   screen:
     name: Screen Explanation
     needs: interpret
     permissions:
       contents: read # Check out the default branch, which claude-code-action needs on pull requests
-    uses: $/.github/workflows/screen.yml
+    uses: $/.github/workflows/_screen.yml
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:

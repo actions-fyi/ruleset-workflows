@@ -19,7 +19,7 @@ name: Check Metadata
 # A pull request can try to make Claude read a secret and write it into the title or the
 # description, which would then be published on the pull request. So Claude runs with read-only
 # tokens and can only read the checkout, and before anything it wrote is applied, a screen job runs
-# it through screen.yml, which fails on anything that looks like a secret. Claude's text is never
+# it through _screen.yml, which fails on anything that looks like a secret. Claude's text is never
 # printed before it passed the screen. The jobs that apply the title and post the description are
 # the only ones with write access, and run no agent and no code from the pull request.
 #
@@ -250,7 +250,7 @@ jobs:
           fi
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"
 
-  # Fails unless the new title is judged free of secrets; see screen.yml. The run fails then, but
+  # Fails unless the new title is judged free of secrets; see _screen.yml. The run fails then, but
   # it would anyway: the title stays invalid.
   screen-title:
     name: Screen PR Title
@@ -258,7 +258,7 @@ jobs:
     if: needs.rewrite.outputs.title != ''
     permissions:
       contents: read # Check out the default branch, which claude-code-action needs on pull requests
-    uses: $/.github/workflows/screen.yml
+    uses: $/.github/workflows/_screen.yml
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:
@@ -503,7 +503,7 @@ jobs:
             echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
-  # Fails unless the description is judged free of secrets; see screen.yml. Unlike the other
+  # Fails unless the description is judged free of secrets; see _screen.yml. Unlike the other
   # description jobs, it can't be advisory, because a job that calls a reusable workflow can't
   # continue on error; see the comment at the top.
   screen-description:
@@ -515,7 +515,7 @@ jobs:
       cancel-in-progress: true
     permissions:
       contents: read # Check out the default branch, which claude-code-action needs on pull requests
-    uses: $/.github/workflows/screen.yml
+    uses: $/.github/workflows/_screen.yml
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:
