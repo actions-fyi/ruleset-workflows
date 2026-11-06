@@ -55,7 +55,9 @@ jobs:
         with:
           types: ${{ env.TITLE_TYPES }}
           validateSingleCommit: true
+          subjectPattern: ^[^,]+$
+          subjectPatternError: 'The subject must not contain commas: "{subject}"'
       - name: Report Invalid Title
         if: failure() && steps.check.outcome == 'failure'
         run: |
-          echo "::error::The title isn't a valid Conventional Commits title (type(scope): subject, with type one of: $(xargs <<< "$TITLE_TYPES")). It may be fixed automatically; otherwise edit it and re-run this check, as editing starts no new run."
+          echo "::error::The title isn't a valid Conventional Commits title (type(scope): subject, with type one of: $(xargs <<< "$TITLE_TYPES"), and no commas in the subject). It may be fixed automatically; otherwise edit it and re-run this check, as editing starts no new run."
