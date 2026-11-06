@@ -175,6 +175,7 @@ jobs:
           # requires this file on the target repository's default branch, which a ruleset workflow
           # never is. Comments come from github-actions[bot].
           github_token: ${{ github.token }}
+          allowed_bots: octo-sts[bot]
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
