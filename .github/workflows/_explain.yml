@@ -6,14 +6,28 @@ name: Explain Results
 #
 # The _ prefix marks a shared workflow: called only with workflow_call, never by events or rulesets.
 #
-# Claude reads the results of a failed check and explains them. The caller writes the task in the
-# prompt input; this workflow adds where the results are and that they are untrusted. The answer
-# is a title and a body, returned as the workflow's outputs. On a pull request, the body is also
-# posted as one comment, found by the marker input and updated by later runs.
+# It owns the reporting for one check, identified by the marker input. Callers call it when the
+# check failed in a way nobody fixed automatically, with failed: true, and when it passed, with
+# failed: false, so that what an earlier failure posted gets resolved.
+# - On a failure, Claude explains the results, the explanation is screened, and the report job
+#   posts it: on an event that carries a pull request, as one comment on it; on the default branch
+#   (push, schedule, workflow_dispatch), as one issue, or a comment on the issue that is still
+#   open. The marker, a hidden HTML comment, finds both, and only what github-actions[bot]
+#   created counts.
+# - On a pass, the resolve job minimizes the comment as resolved, or comments on the issue and
+#   closes it. A later failure on the same pull request unminimizes and updates the comment.
+# Anything else, such as a merge group, is neither a pull request nor the default branch, so every
+# job is skipped. A schedule always runs on the default branch, but its event has no repository
+# payload to compare the ref against, so it is matched by name.
 #
-# The two jobs are split for least privilege: Claude runs in the interpret job, which can only read
-# the repository, and the comment job, which can write to the pull request, runs no agent and no
-# code from the pull request.
+# The report doesn't depend on Claude. Without a prompt or results, or when interpret or screen
+# fails, it posts a fixed text that points at the run. Claude's text is only posted when the screen
+# passed. A failed interpret or screen job still fails the run; nothing uses continue-on-error.
+#
+# The jobs are split for least privilege: Claude runs in the interpret job, which can only read the
+# repository, and the report and resolve jobs, which can write to pull requests and issues, run no
+# agent and no code from the pull request. Callers must grant contents: read, issues: write and
+# pull-requests: write: a caller can't grant less than a job it calls declares, even a skipped one.
 #
 # The results arrive as an artifact the caller uploaded in the same run, not as inputs: job outputs
 # are capped at 1 MB per job, and an artifact carries logs and diffs as files, with nothing to
@@ -22,24 +36,31 @@ name: Explain Results
 # A pull request can try to make Claude read a secret and write it into the explanation, which
 # would then be posted. Claude can only read the checkout, and before anything is posted, the
 # screen job runs the title and body through _screen.yml, which fails on anything that looks like a
-# secret. The outputs may only be used when the call succeeded, that is, when the screen passed.
+# secret.
 on:
   workflow_call:
     inputs:
+      failed:
+        description: Whether the calling check failed. False resolves what an earlier failure posted.
+        type: boolean
+        required: true
+      marker:
+        description: >-
+          The hidden HTML comment, e.g. <!-- my-check-explanation -->, that identifies the one
+          comment per pull request and the one issue on the default branch for the calling check.
+        type: string
+        required: true
       prompt:
         description: >-
           The task for Claude: what failed, what each result file holds, and what to write. Written
-          by the calling workflow, so it is trusted; the results it describes are not.
+          by the calling workflow, so it is trusted; the results it describes are not. Only used
+          when failed is true; without it, or without results, the report gets a fixed text.
         type: string
-        required: true
+        default: ""
       results:
         description: The name of the artifact, uploaded earlier in the same run, that holds the result files.
         type: string
-        required: true
-      marker:
-        description: The hidden HTML comment, e.g. <!-- my-check-explanation -->, that identifies the one comment per pull request.
-        type: string
-        required: true
+        default: ""
       model:
         description: The Claude model.
         type: string
@@ -60,14 +81,6 @@ on:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
-    # Only use them when the call succeeded: a failed screen fails the call, not the outputs.
-    outputs:
-      title:
-        description: A one-line summary of the results.
-        value: ${{ jobs.interpret.outputs.title }}
-      body:
-        description: The explanation in GitHub Markdown.
-        value: ${{ jobs.interpret.outputs.body }}
 
 permissions: {}
 
@@ -80,16 +93,37 @@ jobs:
     name: Interpret Results
     # Guards the checkout here rather than trusting each caller's gate. The checkout uses the pull
     # request's head whenever the event carries one, so the check applies to every such event
-    # (pull_request, pull_request_target, pull_request_review, ...), not only pull_request. It
-    # checks who opened the pull request, not github.actor, so a person pushing to a Renovate pull
-    # request is still explained. Fork pull requests from members pass too; they only work where
-    # the repository sends secrets (and, for the comment job, write tokens) to fork pull requests,
+    # (pull_request, pull_request_target, pull_request_review, ...), not only pull_request. A
+    # branch in this repository passes: only someone with write access can push it. A fork pull
+    # request passes if its author is an owner, member or collaborator, or one of allowed-bots;
+    # that checks who opened it, not github.actor, so a person pushing to a Renovate pull request
+    # is still explained. author_association alone isn't enough for branches, because it reads
+    # CONTRIBUTOR for organization members whose membership is private. Fork pull requests only
+    # work where the repository sends secrets (and, for the report job, write tokens) to them,
     # which private and internal repositories can enable and public ones can't. allowed-bots must
-    # be comma-separated without spaces.
+    # be comma-separated without spaces. Without a pull request, only the default branch counts.
+    # The report and resolve jobs repeat the same condition.
     if: >-
-      !github.event.pull_request
-      || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
-      || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
+      inputs.failed
+      && inputs.prompt != ''
+      && inputs.results != ''
+      && (
+        (
+          github.event.pull_request
+          && (
+            github.event.pull_request.head.repo.full_name == github.repository
+            || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+            || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
+          )
+        )
+        || (
+          !github.event.pull_request
+          && (
+            github.event_name == 'schedule'
+            || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+          )
+        )
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read # Check out the repository, so Claude can read it
@@ -127,7 +161,7 @@ jobs:
         with:
           name: ${{ inputs.results }}
           path: ${{ env.RESULTS_DIR }}
-      # Read-only: Claude returns the explanation as structured output, and the comment job posts it.
+      # Read-only: Claude returns the explanation as structured output, and the report job posts it.
       - name: Write Explanation
         id: claude
         uses: step-security/claude-code-action@v1.0.238
@@ -198,43 +232,225 @@ jobs:
 
         ${{ needs.interpret.outputs.body }}
       context: |
-        An explanation, written by Claude for the author, of why a CI check failed on a pull
-        request: a one-line title, then a body in GitHub Markdown. It may name workflow files,
-        actions and their versions, repository paths, commit SHAs (40 hex characters), log lines,
-        and the commands the author should run.
+        An explanation, written by Claude, of why a CI check failed on a pull request or on the
+        default branch: a one-line title, then a body in GitHub Markdown. It may name workflow
+        files, actions and their versions, repository paths, commit SHAs (40 hex characters), log
+        lines, and the commands to run.
         ${{ inputs.screen-context }}
 
-  comment:
-    name: Post Explanation
+  # Posts the explanation, or the fixed text, whatever interpret and screen did, so the report never
+  # depends on Claude.
+  report:
+    name: Report Failure
     needs: [interpret, screen]
-    if: github.event_name == 'pull_request'
+    if: >-
+      always()
+      && !cancelled()
+      && inputs.failed
+      && (
+        (
+          github.event.pull_request
+          && (
+            github.event.pull_request.head.repo.full_name == github.repository
+            || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+            || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
+          )
+        )
+        || (
+          !github.event.pull_request
+          && (
+            github.event_name == 'schedule'
+            || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+          )
+        )
+      )
     runs-on: ubuntu-latest
-    # Queued rather than cancelled, so the explanation of a fix isn't cancelled by the run the fix
-    # commit starts, and two runs don't both create a comment. The marker keeps callers apart.
+    # Queued rather than cancelled, and shared with the resolve job: the report of a failure isn't
+    # cancelled by the next run, and two quick runs don't both create a comment or an issue.
     concurrency:
-      group: explain-${{ inputs.marker }}-${{ github.ref }}
+      group: explain-${{ inputs.marker }}-${{ github.event.pull_request.number || github.ref }}
     permissions:
-      pull-requests: write # Create or update the explanation comment
+      issues: write # Open the issue, or comment on the open one
+      pull-requests: write # Create, update and unminimize the comment
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@v2.22.3
         with:
           egress-policy: audit
-      # One comment per pull request, found by the hidden marker and updated by later runs.
-      - name: Post Explanation
+      # Claude's text comes in through env, never through an expression in the script source, and
+      # only when the screen passed: interpret's outputs may be unscreened. The script never prints
+      # it; the step's env, shown in the log, only holds it when it was screened.
+      - name: Post Report
+        uses: actions/github-script@v9.0.0
         env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          BODY: ${{ needs.interpret.outputs.body }}
           MARKER: ${{ inputs.marker }}
-        run: |
-          body="$RUNNER_TEMP/comment.md"
-          printf '%s\n\n%s\n' "$BODY" "$MARKER" > "$body"
-          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains(env.MARKER))) | .id' \
-            | tail -n 1)
-          if [[ -n "$id" ]]; then
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$body" --silent
-          else
-            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F "body=@$body" --silent
-          fi
+          EXPLAINED: ${{ needs.interpret.result == 'success' && needs.screen.result == 'success' }}
+          TITLE: ${{ needs.interpret.result == 'success' && needs.screen.result == 'success' && needs.interpret.outputs.title || '' }}
+          BODY: ${{ needs.interpret.result == 'success' && needs.screen.result == 'success' && needs.interpret.outputs.body || '' }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const marker = process.env.MARKER;
+            const bot = 'github-actions[bot]';
+            const pr = context.payload.pull_request;
+
+            // The last comment of this check on the pull request, or the open issue of this check.
+            async function findComment() {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: pr.number, per_page: 100,
+              });
+              return comments.filter((c) => c.user?.login === bot && (c.body ?? '').includes(marker)).pop();
+            }
+            async function findIssue() {
+              const issues = await github.paginate(github.rest.issues.listForRepo, {
+                owner, repo, state: 'open', creator: bot, per_page: 100,
+              });
+              return issues.find((i) => !i.pull_request && i.user?.login === bot && (i.body ?? '').includes(marker));
+            }
+            async function isMinimized(comment) {
+              const { node } = await github.graphql(
+                'query($id: ID!) { node(id: $id) { ... on IssueComment { isMinimized } } }',
+                { id: comment.node_id },
+              );
+              return node?.isMinimized === true;
+            }
+
+            const env = process.env;
+            const runUrl = `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}`;
+            const sha = env.GITHUB_SHA.slice(0, 7);
+
+            const refName = env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME;
+            let title = (env.TITLE ?? '').split('\n')[0].trim();
+            let text = env.BODY ?? '';
+            const explained = env.EXPLAINED === 'true' && title !== '' && text.trim() !== '';
+            if (!explained) {
+              title = `${env.GITHUB_WORKFLOW} failed on ${refName}`;
+              text = 'No explanation is available: it wasn\'t requested, failed, or was blocked by the screen. See the failed run for the details.';
+            }
+            const body = `**${title}**\n\n${text.trim()}\n\n---\nFailed run: ${runUrl} at ${sha}\n\n${marker}\n`;
+
+            if (pr) {
+              const comment = await findComment();
+              if (!comment) {
+                const { data } = await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+                core.info(`Created comment ${data.id}.`);
+                return;
+              }
+              await github.rest.issues.updateComment({ owner, repo, comment_id: comment.id, body });
+              if (await isMinimized(comment)) {
+                await github.graphql(
+                  'mutation($id: ID!) { unminimizeComment(input: {subjectId: $id}) { unminimizedComment { isMinimized } } }',
+                  { id: comment.node_id },
+                );
+              }
+              core.info(`Updated comment ${comment.id}.`);
+              return;
+            }
+
+            const issue = await findIssue();
+            if (issue) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body });
+              core.info(`Commented on the open issue #${issue.number}.`);
+              return;
+            }
+            let issueTitle = explained ? `${env.GITHUB_WORKFLOW}: ${title}` : title;
+            if (issueTitle.length > 120) {
+              issueTitle = `${issueTitle.slice(0, 117)}...`;
+            }
+            const { data } = await github.rest.issues.create({ owner, repo, title: issueTitle, body });
+            core.info(`Opened issue #${data.number}.`);
+
+  resolve:
+    name: Resolve Report
+    if: >-
+      !inputs.failed
+      && (
+        (
+          github.event.pull_request
+          && (
+            github.event.pull_request.head.repo.full_name == github.repository
+            || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+            || contains(format(',{0},', inputs.allowed-bots), format(',{0},', github.event.pull_request.user.login))
+          )
+        )
+        || (
+          !github.event.pull_request
+          && (
+            github.event_name == 'schedule'
+            || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+          )
+        )
+      )
+    runs-on: ubuntu-latest
+    concurrency:
+      group: explain-${{ inputs.marker }}-${{ github.event.pull_request.number || github.ref }}
+    permissions:
+      issues: write # Comment on and close the open issue
+      pull-requests: write # Minimize the comment
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@v2.22.3
+        with:
+          egress-policy: audit
+      - name: Resolve Report
+        uses: actions/github-script@v9.0.0
+        env:
+          MARKER: ${{ inputs.marker }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const marker = process.env.MARKER;
+            const bot = 'github-actions[bot]';
+            const pr = context.payload.pull_request;
+
+            // The last comment of this check on the pull request, or the open issue of this check.
+            async function findComment() {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: pr.number, per_page: 100,
+              });
+              return comments.filter((c) => c.user?.login === bot && (c.body ?? '').includes(marker)).pop();
+            }
+            async function findIssue() {
+              const issues = await github.paginate(github.rest.issues.listForRepo, {
+                owner, repo, state: 'open', creator: bot, per_page: 100,
+              });
+              return issues.find((i) => !i.pull_request && i.user?.login === bot && (i.body ?? '').includes(marker));
+            }
+            async function isMinimized(comment) {
+              const { node } = await github.graphql(
+                'query($id: ID!) { node(id: $id) { ... on IssueComment { isMinimized } } }',
+                { id: comment.node_id },
+              );
+              return node?.isMinimized === true;
+            }
+
+            const env = process.env;
+            const runUrl = `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}`;
+            const sha = env.GITHUB_SHA.slice(0, 7);
+
+            if (pr) {
+              const comment = await findComment();
+              if (!comment || await isMinimized(comment)) {
+                core.info('No visible comment to resolve.');
+                return;
+              }
+              await github.graphql(
+                'mutation($id: ID!) { minimizeComment(input: {subjectId: $id, classifier: RESOLVED}) { minimizedComment { isMinimized } } }',
+                { id: comment.node_id },
+              );
+              core.info(`Minimized comment ${comment.id} as resolved.`);
+              return;
+            }
+
+            const issue = await findIssue();
+            if (!issue) {
+              core.info('No open issue to close.');
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: issue.number, body: `Passed again in ${runUrl} at ${sha}.`,
+            });
+            await github.rest.issues.update({
+              owner, repo, issue_number: issue.number, state: 'closed', state_reason: 'completed',
+            });
+            core.info(`Closed issue #${issue.number}.`);
