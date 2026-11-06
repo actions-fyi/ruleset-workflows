@@ -258,7 +258,7 @@ jobs:
     if: needs.rewrite.outputs.title != ''
     permissions:
       contents: read # Check out the default branch, which claude-code-action needs on pull requests
-    uses: $/.github/workflows/_screen.yml
+    uses: actions-fyi/shared-workflows/.github/workflows/_screen.yml@v0.1.0
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:
@@ -515,7 +515,7 @@ jobs:
       cancel-in-progress: true
     permissions:
       contents: read # Check out the default branch, which claude-code-action needs on pull requests
-    uses: $/.github/workflows/_screen.yml
+    uses: actions-fyi/shared-workflows/.github/workflows/_screen.yml@v0.1.0
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:
