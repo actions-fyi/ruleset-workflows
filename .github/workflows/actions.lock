@@ -11,7 +11,7 @@ workflows:
     '.github/workflows/audit-actions.yml': []
     '.github/workflows/claude-review.yml':
         - 'actions/checkout@v7.0.1'
-        - 'step-security/claude-code-action@v1.0.238'
+        - 'step-security/claude-code-action@v1.0.268'
         - 'step-security/harden-runner@v2.22.3'
     '.github/workflows/metadata.yml':
         - 'step-security/action-semantic-pull-request@v6.1.2'
@@ -33,9 +33,9 @@ dependencies:
         commit: 'sha1-75d2dd5deafa3e9fccc1626ecd58d076ed1d2c79'
         owner_id: 88700172
         repo_id: 718815272
-    'step-security/claude-code-action@v1.0.238':
-        ref: 'v1.0.238'
-        commit: 'sha1-f921413b67d52bb040358b3c180b45f823cad94f'
+    'step-security/claude-code-action@v1.0.268':
+        ref: 'v1.0.268'
+        commit: 'sha1-c68dfb24263227dd312f4c6a5ed0b215a18b4ba6'
         owner_id: 88700172
         repo_id: 1091477204
         uses:
