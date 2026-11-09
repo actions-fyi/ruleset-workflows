@@ -39,7 +39,7 @@ jobs:
       pull-requests: read # Read the title and commits
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@v2.22.3
+        uses: step-security/harden-runner@v2.22.4
         with:
           egress-policy: audit
       # A merge group has no pull request payload, so the action would fail there. The title was

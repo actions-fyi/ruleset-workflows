@@ -26,7 +26,7 @@ jobs:
       lint: ${{ steps.changes.outputs.lint }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@v2.22.3
+        uses: step-security/harden-runner@v2.22.4
         with:
           egress-policy: audit
       # A three-dot compare lists what the pull request changes since it branched off; for a merge
@@ -75,7 +75,7 @@ jobs:
       pull-requests: write # Post findings as review comments
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@v2.22.3
+        uses: step-security/harden-runner@v2.22.4
         with:
           egress-policy: audit
       - name: Checkout Repository
