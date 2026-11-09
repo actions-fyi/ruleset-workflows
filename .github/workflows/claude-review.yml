@@ -58,7 +58,7 @@ jobs:
         run: echo "::notice::No review on fork pull requests. They get no secrets, so Claude can't run."
       - name: Harden the runner (Audit all outbound calls)
         if: env.REVIEW == 'true'
-        uses: step-security/harden-runner@v2.22.3
+        uses: step-security/harden-runner@v2.22.4
         with:
           egress-policy: audit
       - name: Checkout Repository
