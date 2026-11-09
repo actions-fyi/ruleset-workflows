@@ -1,0 +1,24 @@
+name: Validate Renovate Config
+# Runs as an organization ruleset workflow ("Require workflows to pass before merging"), where
+# only the workflow name is shown, not the job name, so the name must say what it checks. Rulesets
+# ignore event filters and only run on the default activity types (opened, synchronize and reopened
+# for pull requests, checks_requested for merge groups), so none are set here. A merge queue waits
+# for every required workflow, so this one must also run on merge_group, where it validates the
+# merged result.
+#
+# The checks live in _renovate.yml of actions-fyi/shared-workflows; see there. Pushes to main are
+# validated by renovate.yml of actions-fyi/.github.
+on:
+  pull_request:
+  merge_group:
+
+permissions: {}
+
+jobs:
+  renovate:
+    name: Renovate
+    # The union of what the jobs of _renovate.yml declare; a called job can't get more.
+    permissions:
+      contents: read # Read the Renovate configs
+      pull-requests: write # Review permission, and post the suggestions on pull requests
+    uses: actions-fyi/shared-workflows/.github/workflows/_renovate.yml@3846a95a41212282762d6d8769d7f6efe3c7078c # v0.9.0
