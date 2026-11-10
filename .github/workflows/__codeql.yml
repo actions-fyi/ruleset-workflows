@@ -1,7 +1,8 @@
 name: CodeQL
-# Not a ruleset workflow: the repo- prefix marks a workflow that runs for this repository only, like
-# any repository's own workflow. It's this repository's copy of codeql.yml of actions-fyi/.github,
-# which StepSecurity distributes to the other repositories; see there.
+# Not a ruleset workflow: the __ prefix marks a workflow that runs for this repository only, like
+# any repository's own workflow; a single _ marks a reusable workflow. It's this repository's copy
+# of codeql.yml of actions-fyi/.github, which StepSecurity distributes to the other repositories;
+# see there.
 #
 # CodeQL can't be an org ruleset workflow, because GitHub doesn't allow github/codeql-action in a
 # required workflow. The org ruleset enforces it with "Require code scanning results" instead, and
