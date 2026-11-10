@@ -3,6 +3,7 @@
 # Docs: https://gh.io/actions-lockfile
 version: 'v0.0.3'
 workflows:
+    '.github/workflows/__codeql.yml': []
     '.github/workflows/actions-lock.yml': []
     '.github/workflows/actionslint.yml':
         - 'actions/checkout@v7.0.1'
@@ -18,7 +19,6 @@ workflows:
         - 'step-security/action-semantic-pull-request@v6.1.2'
         - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/renovate-config.yml': []
-    '.github/workflows/repo-codeql.yml': []
 dependencies:
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
