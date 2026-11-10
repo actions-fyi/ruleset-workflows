@@ -1,0 +1,29 @@
+name: CodeQL
+# Not a ruleset workflow: the repo- prefix marks a workflow that runs for this repository only, like
+# any repository's own workflow. It's this repository's copy of codeql.yml of actions-fyi/.github,
+# which StepSecurity distributes to the other repositories; see there.
+#
+# CodeQL can't be an org ruleset workflow, because GitHub doesn't allow github/codeql-action in a
+# required workflow. The org ruleset enforces it with "Require code scanning results" instead, and
+# a merge queue waits for those results, so this also runs on merge_group. The analysis lives in
+# _codeql.yml of actions-fyi/shared-workflows. CodeQL's default setup must be off in this
+# repository, or code scanning rejects the upload.
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "37 4 * * 1"
+
+permissions: {}
+
+jobs:
+  codeql:
+    name: CodeQL
+    # The union of what the jobs of _codeql.yml declare; a called job can't get more.
+    permissions:
+      contents: read # Read the repository's languages and check it out
+      security-events: write # Upload the results to code scanning
+      actions: read # Let CodeQL read the workflow run
+    uses: actions-fyi/shared-workflows/.github/workflows/_codeql.yml@e8b138d258347ce55279f3bf6f54f65a32b38ccc # v0.14.0
