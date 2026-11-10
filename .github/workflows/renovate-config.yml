@@ -21,4 +21,4 @@ jobs:
     permissions:
       contents: read # Read the Renovate configs
       pull-requests: write # Review permission, and post the suggestions on pull requests
-    uses: actions-fyi/shared-workflows/.github/workflows/_renovate.yml@c4e123d2118a040f2161bc830e535a9ea4850650 # v0.12.0
+    uses: actions-fyi/shared-workflows/.github/workflows/_renovate.yml@d7c1481a1bd223538cc558d1afbc2e87b8c104b2 # v0.12.2
