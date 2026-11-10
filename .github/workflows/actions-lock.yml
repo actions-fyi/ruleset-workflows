@@ -22,4 +22,4 @@ jobs:
     permissions:
       contents: read # Compare the changes, read the workflows, check out the pull request
       id-token: write # Exchange the fix job's OIDC token with Octo STS
-    uses: actions-fyi/shared-workflows/.github/workflows/_actions-lock.yml@v0.12.0
+    uses: actions-fyi/shared-workflows/.github/workflows/_actions-lock.yml@v0.12.2
