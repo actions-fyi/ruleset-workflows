@@ -20,7 +20,5 @@ jobs:
     # The union of what the jobs of _renovate.yml declare; a called job can't get more.
     permissions:
       contents: read # Read the Renovate configs
-      pull-requests: write # Review permission, and post the suggestions on pull requests
       id-token: write # Get the Octo STS token for the fix commit
-    # By tag, not SHA: the Octo STS trust policy of the fix job binds the tag ref.
-    uses: actions-fyi/shared-workflows/.github/workflows/_renovate.yml@v0.14.0
+    uses: actions-fyi/shared-workflows/.github/workflows/_renovate.yml@v0.15.0
