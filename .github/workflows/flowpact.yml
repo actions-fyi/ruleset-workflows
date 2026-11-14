@@ -27,4 +27,4 @@ jobs:
       actions: read # Let upload-sarif read the workflow run
       id-token: write # Get an Octo STS token to commit contracts and the remotes lockfile
       issues: write # Declared by _flowpact.yml for pushes, which rulesets don't run on
-    uses: actions-fyi/shared-workflows/.github/workflows/_flowpact.yml@v0.18.0
+    uses: actions-fyi/shared-workflows/.github/workflows/_flowpact.yml@v0.18.1
