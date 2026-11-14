@@ -2,8 +2,8 @@
 # The interfaces of the remote reusable workflows and actions this repository uses, at the commit each resolved to.
 version: 1
 remotes:
-  actions-fyi/shared-workflows/.github/workflows/_actions-lock.yml@v0.18.0:
-    sha: 3fe9a506a1f7bedb61a02b8da7893080acb37462
+  actions-fyi/shared-workflows/.github/workflows/_actions-lock.yml@v0.18.1:
+    sha: 62f4556f15dbf623e76ceeacef49b957fbc76384
     kind: workflow
     jobPermissions:
       changes:
@@ -13,8 +13,8 @@ remotes:
       fix:
         contents: read
         id-token: write
-  actions-fyi/shared-workflows/.github/workflows/_codeql.yml@v0.18.0:
-    sha: 3fe9a506a1f7bedb61a02b8da7893080acb37462
+  actions-fyi/shared-workflows/.github/workflows/_codeql.yml@v0.18.1:
+    sha: 62f4556f15dbf623e76ceeacef49b957fbc76384
     kind: workflow
     inputs:
       languages:
@@ -30,8 +30,8 @@ remotes:
         actions: read
       results:
         id-token: write
-  actions-fyi/shared-workflows/.github/workflows/_flowpact.yml@v0.18.0:
-    sha: 3fe9a506a1f7bedb61a02b8da7893080acb37462
+  actions-fyi/shared-workflows/.github/workflows/_flowpact.yml@v0.18.1:
+    sha: 62f4556f15dbf623e76ceeacef49b957fbc76384
     kind: workflow
     jobPermissions:
       check:
@@ -45,8 +45,8 @@ remotes:
         id-token: write
       issue:
         issues: write
-  actions-fyi/shared-workflows/.github/workflows/_renovate.yml@v0.18.0:
-    sha: 3fe9a506a1f7bedb61a02b8da7893080acb37462
+  actions-fyi/shared-workflows/.github/workflows/_renovate.yml@v0.18.1:
+    sha: 62f4556f15dbf623e76ceeacef49b957fbc76384
     kind: workflow
     jobPermissions:
       renovate:
@@ -56,8 +56,8 @@ remotes:
       fix:
         contents: read
         id-token: write
-  actions-fyi/shared-workflows/.github/workflows/_zizmor.yml@v0.18.0:
-    sha: 3fe9a506a1f7bedb61a02b8da7893080acb37462
+  actions-fyi/shared-workflows/.github/workflows/_zizmor.yml@v0.18.1:
+    sha: 62f4556f15dbf623e76ceeacef49b957fbc76384
     kind: workflow
     inputs:
       zizmor-version:
