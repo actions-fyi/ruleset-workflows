@@ -1,0 +1,30 @@
+name: Check Workflow Data Flow
+# Runs as an organization ruleset workflow ("Require workflows to pass before merging"), where
+# only the workflow name is shown, not the job name, so the name must say what it checks. Rulesets
+# ignore event filters and only run on the default activity types (opened, synchronize and reopened
+# for pull requests, checks_requested for merge groups), so none are set here. A merge queue waits
+# for every required workflow, so this one must also run on merge_group, where it checks the merged
+# result.
+#
+# The check lives in _flowpact.yml of actions-fyi/shared-workflows; see there. It is called by full
+# path and tag, because in a ruleset workflow, GitHub resolves `$/` against the target repository.
+# Rulesets ignore the edited activity type too, so in a repository whose custom property
+# action-publishing is true, a pull request title fixed by hand is graded again only after a re-run
+# or another push.
+on:
+  pull_request:
+  merge_group:
+
+permissions: {}
+
+jobs:
+  flowpact:
+    name: flowpact
+    # The union of what the jobs of _flowpact.yml declare; a called job can't get more.
+    permissions:
+      contents: read # Check out the repository and fetch the remote interfaces
+      security-events: write # Upload the SARIF report to code scanning
+      actions: read # Let upload-sarif read the workflow run
+      id-token: write # Get an Octo STS token to commit contracts and the remotes lockfile
+      issues: write # Declared by _flowpact.yml for pushes, which rulesets don't run on
+    uses: actions-fyi/shared-workflows/.github/workflows/_flowpact.yml@v0.18.0
