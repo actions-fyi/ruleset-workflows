@@ -72,7 +72,6 @@ jobs:
       group: actionslint-${{ github.ref }}
     permissions:
       contents: read # Read workflow files
-      pull-requests: write # Post findings as review comments
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@v2.22.4
@@ -84,5 +83,3 @@ jobs:
           persist-credentials: false
       - name: Lint GitHub Actions Workflows
         uses: kjanat/actionlint@v1.17.1
-        with:
-          review: true
