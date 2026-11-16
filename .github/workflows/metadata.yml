@@ -1,4 +1,4 @@
-name: Check Metadata
+name: Lint Metadata
 # Checks that the pull request title is a Conventional Commits title.
 #
 # Runs as an organization ruleset workflow ("Require workflows to pass before merging"), where
