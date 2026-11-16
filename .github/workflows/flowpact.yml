@@ -1,4 +1,4 @@
-name: Check Workflow Data Flow
+name: Audit Workflow Data Flow
 # Runs as an organization ruleset workflow ("Require workflows to pass before merging"), where
 # only the workflow name is shown, not the job name, so the name must say what it checks. Rulesets
 # ignore event filters and only run on the default activity types (opened, synchronize and reopened
@@ -27,4 +27,4 @@ jobs:
       actions: read # Let upload-sarif read the workflow run
       id-token: write # Get an Octo STS token to commit contracts and the remotes lockfile
       issues: write # Declared by _flowpact.yml for pushes, which rulesets don't run on
-    uses: actions-fyi/shared-workflows/.github/workflows/_flowpact.yml@v0.18.1
+    uses: actions-fyi/shared-workflows/.github/workflows/_flowpact.yml@v1.0.0
