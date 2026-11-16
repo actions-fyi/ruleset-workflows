@@ -56,6 +56,21 @@ remotes:
       fix:
         contents: read
         id-token: write
+  actions-fyi/shared-workflows/.github/workflows/_typescript.yml@v1.0.0:
+    sha: aa37d16cd45c46e4243576509261e12259b33b78
+    kind: workflow
+    inputs:
+      scripts:
+        type: string
+        default: typecheck lint format:check build test
+      working-directory:
+        type: string
+        default: .
+    jobPermissions:
+      project:
+        contents: read
+      check:
+        contents: read
   actions-fyi/shared-workflows/.github/workflows/_zizmor.yml@v1.0.0:
     sha: aa37d16cd45c46e4243576509261e12259b33b78
     kind: workflow
