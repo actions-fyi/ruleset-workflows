@@ -133,38 +133,8 @@ remotes:
     outputs:
       - ref
       - commit
-  kjanat/actionlint@v1.17.1:
-    sha: 220b76cfa568e00ed8b3c476898f849a722b88e2
-    kind: action
-    using: docker
-    inputs:
-      files:
-        default: ''
-      format:
-        default: github
-      ignore:
-        default: ''
-      config-file:
-        default: ''
-      shellcheck:
-        default: 'true'
-      pyflakes:
-        default: 'true'
-      working-directory:
-        default: .
-      output-file:
-        default: ''
-      fail-on-error:
-        default: 'true'
-    outputs:
-      - exit-code
-      - result
-      - problems-found
-      - problem-count
-      - output
-      - output-file
-  step-security/action-semantic-pull-request@v6.1.2:
-    sha: 75d2dd5deafa3e9fccc1626ecd58d076ed1d2c79
+  amannn/action-semantic-pull-request@v6.1.2:
+    sha: 2252a14e810aa9b85c2d560bd7070c802206ecf6
     kind: action
     using: node24
     inputs:
@@ -182,8 +152,8 @@ remotes:
       headerPattern: {}
       headerPatternCorrespondence: {}
       wip: {}
-  step-security/claude-code-action@v1.0.268:
-    sha: c68dfb24263227dd312f4c6a5ed0b215a18b4ba6
+  anthropics/claude-code-action@v1.0.268:
+    sha: c0949c50a78c1ec8ce2647db36629b870e715d0c
     kind: action
     using: composite
     inputs:
@@ -262,40 +232,33 @@ remotes:
       - github_token
       - structured_output
       - session_id
-  step-security/harden-runner@v2.23.0:
-    sha: aebdcf6156ab6691adf63218240e476564a1ed4c
+  kjanat/actionlint@v1.17.1:
+    sha: 220b76cfa568e00ed8b3c476898f849a722b88e2
     kind: action
-    using: node24
+    using: docker
     inputs:
-      allowed-endpoints:
+      files:
         default: ''
-      denied-endpoints:
+      format:
+        default: github
+      ignore:
         default: ''
-      egress-policy:
-        default: block
-      token:
-        default: ${{ github.token }}
-      disable-telemetry:
-        default: 'false'
-      disable-sudo:
-        default: 'false'
-      disable-sudo-and-containers:
-        default: 'false'
-      disable-file-monitoring:
-        default: 'false'
-      policy:
+      config-file:
         default: ''
-      api-key:
+      shellcheck:
+        default: 'true'
+      pyflakes:
+        default: 'true'
+      working-directory:
+        default: .
+      output-file:
         default: ''
-      use-policy-store:
-        default: 'false'
-      deploy-on-self-hosted-vm:
-        default: 'false'
-      customer:
-        default: ''
-      server-name:
-        default: ''
-      secure-registry:
-        default: ''
-      check-run-id:
-        default: ${{ job.check_run_id }}
+      fail-on-error:
+        default: 'true'
+    outputs:
+      - exit-code
+      - result
+      - problems-found
+      - problem-count
+      - output
+      - output-file
