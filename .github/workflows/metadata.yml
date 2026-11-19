@@ -61,3 +61,21 @@ jobs:
         if: failure() && steps.check.outcome == 'failure'
         run: |
           echo "::error::The title isn't a valid Conventional Commits title (type(scope): subject, with type one of: $(xargs <<< "$TITLE_TYPES"), and no commas in the subject). It may be fixed automatically; otherwise edit it and re-run this check, as editing starts no new run."
+
+  # TEMPORARY TEST, NOT FOR MERGE. The control: this repository's own job, under this repository's
+  # .github/egress-firewall.yaml. If it can't reach api.github.com, enforcement works here.
+  egress-test:
+    name: Egress Test (temporary)
+    runs-on: ubuntu-24.04-firewall
+    permissions:
+      contents: read # The egress firewall reads .github/egress-firewall.yaml with this token
+    steps:
+      - name: Reach api.github.com and pypi.org
+        run: |
+          for url in https://api.github.com/zen https://pypi.org/simple/zizmor/; do
+            if curl -sS -o /dev/null --max-time 20 "$url"; then
+              echo "::notice::Reached $url"
+            else
+              echo "::warning::Couldn't reach $url"
+            fi
+          done
