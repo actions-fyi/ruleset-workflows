@@ -1,5 +1,0 @@
-# TEMPORARY TEST, NOT FOR MERGE: declares GitHub's egress firewall runner label, which actionlint
-# doesn't know yet.
-self-hosted-runner:
-  labels:
-    - ubuntu-24.04-firewall

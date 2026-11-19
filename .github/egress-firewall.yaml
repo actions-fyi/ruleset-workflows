@@ -1,6 +1,0 @@
-# TEMPORARY TEST, NOT FOR MERGE. Strict on purpose: only GitHub's built-in defaults are reachable,
-# so api.github.com and pypi.org are blocked if this policy applies. It shows whether the shared
-# workflows of actions-fyi/shared-workflows@v3.0.0, called from this repository, run under this
-# repository's policy or under their own (mode: log).
-mode: enforce
-allow: []
