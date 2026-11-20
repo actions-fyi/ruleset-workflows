@@ -15,6 +15,35 @@ remotes:
       commit:
         contents: read
         id-token: write
+  actions-fyi/shared-workflows/.github/workflows/_claude-review.yml@v3.0.0:
+    sha: e594653ae25a378c3f30d543e6273f6b056a6ca9
+    kind: workflow
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+      PROMPT_GUARD_CLIENT_ID: {}
+      CF_ACCESS_CLIENT_ID: {}
+      CF_ACCESS_CLIENT_SECRET: {}
+    jobPermissions:
+      collect:
+        contents: read
+        issues: read
+        pull-requests: read
+      guard:
+        id-token: write
+        issues: write
+        pull-requests: write
+      verdict:
+        contents: read
+      claude:
+        contents: read
+        pull-requests: read
+        actions: read
+      screen:
+        contents: read
+      post:
+        contents: read
+        pull-requests: write
   actions-fyi/shared-workflows/.github/workflows/_codeql.yml@v3.0.0:
     sha: e594653ae25a378c3f30d543e6273f6b056a6ca9
     kind: workflow
@@ -152,90 +181,6 @@ remotes:
       headerPattern: {}
       headerPatternCorrespondence: {}
       wip: {}
-  anthropics/claude-code-action@v1.0.284:
-    sha: c84e279f859e2591391e95bd309286eb111c345f
-    kind: action
-    using: composite
-    inputs:
-      trigger_phrase:
-        default: '@claude'
-      assignee_trigger: {}
-      label_trigger:
-        default: claude
-      base_branch: {}
-      branch_prefix:
-        default: claude/
-      branch_name_template:
-        default: ''
-      allowed_bots:
-        default: ''
-      allowed_non_write_users:
-        default: ''
-      allow_fork_prs:
-        default: 'true'
-      restrict_untrusted_prs:
-        default: 'true'
-      include_comments_by_actor:
-        default: ''
-      exclude_comments_by_actor:
-        default: ''
-      prompt:
-        default: ''
-      settings:
-        default: ''
-      anthropic_api_key: {}
-      claude_code_oauth_token: {}
-      anthropic_federation_rule_id: {}
-      anthropic_organization_id: {}
-      anthropic_service_account_id: {}
-      anthropic_workspace_id: {}
-      anthropic_oidc_audience: {}
-      github_token: {}
-      use_bedrock:
-        default: 'false'
-      use_vertex:
-        default: 'false'
-      use_foundry:
-        default: 'false'
-      claude_args:
-        default: ''
-      additional_permissions:
-        default: ''
-      use_sticky_comment:
-        default: 'false'
-      classify_inline_comments:
-        default: 'true'
-      use_commit_signing:
-        default: 'false'
-      ssh_signing_key:
-        default: ''
-      bot_id:
-        default: '41898282'
-      bot_name:
-        default: claude[bot]
-      track_progress:
-        default: 'false'
-      include_fix_links:
-        default: 'true'
-      path_to_claude_code_executable:
-        default: ''
-      path_to_bun_executable:
-        default: ''
-      display_report:
-        default: 'false'
-      show_full_output:
-        default: 'false'
-      plugins:
-        default: ''
-      plugin_marketplaces:
-        default: ''
-    outputs:
-      - conclusion
-      - execution_file
-      - branch_name
-      - github_token
-      - structured_output
-      - session_id
   kjanat/actionlint@v1.17.1:
     sha: 220b76cfa568e00ed8b3c476898f849a722b88e2
     kind: action
