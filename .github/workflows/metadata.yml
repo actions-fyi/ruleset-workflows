@@ -5,11 +5,14 @@ name: Lint Metadata
 # only the workflow name is shown, not the job name, so the name must say what it checks. Rulesets
 # ignore event filters and only run on the default activity types (opened, synchronize and reopened
 # for pull requests, checks_requested for merge groups), so none are set here. That includes
-# `edited`: after fixing a failed title by hand, re-run the job or push again. A merge queue waits
-# for every required workflow, so this one must also run on merge_group.
+# `edited`. A merge queue waits for every required workflow, so this one must also run on
+# merge_group.
 #
 # Fixes are applied by the workflow_run-based _pr-metadata.yml of actions-fyi/shared-workflows,
-# where a repository has it; this check neither depends on nor waits for it.
+# where a repository has it, which re-runs this check after a fix. The same listener runs
+# _metadata-rerun.yml when someone edits the title, which re-runs it too. Without that listener,
+# re-run the job or push again after fixing a title by hand. This check neither depends on nor
+# waits for either.
 on:
   pull_request:
   merge_group:
@@ -54,7 +57,24 @@ jobs:
           validateSingleCommit: true
           subjectPattern: ^[^,]+$
           subjectPatternError: 'The subject must not contain commas: "{subject}"'
+      # The check fails for an invalid title and, with a valid one, for the message of a pull
+      # request's only commit, and has no output that says which. So the title is checked again
+      # here, by the same rules: when it passes, the commit is what failed. A commit can't be
+      # fixed by editing the title or by re-running, so the two get different advice.
       - name: Report Invalid Title
         if: failure() && steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          echo "::error::The title isn't a valid Conventional Commits title (type(scope): subject, with type one of: $(xargs <<< "$TITLE_TYPES"), and no commas in the subject). It may be fixed automatically; otherwise edit it and re-run this check, as editing starts no new run."
+          if ! title=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .title); then
+            echo "::error::The title or the message of the only commit isn't a valid Conventional Commits title; see the error above."
+            exit 1
+          fi
+          types=$(grep -v '^[[:space:]]*$' <<< "$TITLE_TYPES" | paste -sd '|')
+          pattern="^(${types})(\([^)]+\))?!?: ([^[:space:]].*)$"
+          if [[ $title =~ $pattern && ${BASH_REMATCH[3]} != *,* ]]; then
+            echo "::error::The title is valid, but this pull request has only one commit, and that commit's message isn't: a squash merge would use the commit's message instead of the title. Editing the title or re-running this check doesn't help. Reword the commit to match the title and push it, or push another commit."
+          else
+            echo "::error::The title isn't a valid Conventional Commits title (type(scope): subject, with type one of: $(xargs <<< "$TITLE_TYPES"), and no commas in the subject). It may be fixed automatically. Otherwise edit it: where the repository has the PR Metadata workflow, the edit re-runs this check; elsewhere, re-run it, as editing starts no new run."
+          fi
