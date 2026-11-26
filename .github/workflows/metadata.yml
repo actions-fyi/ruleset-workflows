@@ -10,9 +10,9 @@ name: Lint Metadata
 #
 # Fixes are applied by the workflow_run-based _pr-metadata.yml of actions-fyi/shared-workflows,
 # where a repository has it, which re-runs this check after a fix. The same listener runs
-# _metadata-rerun.yml when someone edits the title, which re-runs it too. Without that listener,
-# re-run the job or push again after fixing a title by hand. This check neither depends on nor
-# waits for either.
+# _metadata-rerun.yml when title-edit.yml of actions-fyi/.github relays a title edit, which re-runs
+# it too. Without that listener, re-run the job or push again after fixing a title by hand. This
+# check neither depends on nor waits for either.
 on:
   pull_request:
   merge_group:
