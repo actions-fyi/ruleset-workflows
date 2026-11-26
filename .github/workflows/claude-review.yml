@@ -28,7 +28,7 @@ jobs:
       id-token: write # Log in to OpenBao for Prompt Guard
       issues: write # Read the comments, and comment on a flagged pull request
       pull-requests: write # Read the thread, flag it, and post review comments
-    uses: actions-fyi/shared-workflows/.github/workflows/_claude-review.yml@v4.3.0
+    uses: actions-fyi/shared-workflows/.github/workflows/_claude-review.yml@v4.4.0
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       PROMPT_GUARD_CLIENT_ID: ${{ secrets.PROMPT_GUARD_CLIENT_ID }}
